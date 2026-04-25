@@ -1,0 +1,6 @@
+https://drive.google.com/drive/folders/1jPEEPXIq9-NelqpIUaMqP9j-8ugsbDrZ?usp=sharing 
+
+name : medicines.xlxs convert to UTF CSV 
+
+Name	Contains	ProductIntroduction	ProductBenefits	SideEffect	HowToUse	HowWorks	QuickTips	SafetyAdvice
+ هتخلي  ال columns دول و تمح الباقي و بعد كده تعمل save as UTF-8 CSV

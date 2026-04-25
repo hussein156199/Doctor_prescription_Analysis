@@ -1,0 +1,733 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام تحليل الوصفات الطبية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary-dark: #0d3b66;
+            --primary: #1a5f7a;
+            --primary-light: #2c8cac;
+            --accent: #f4a261;
+            --success: #2a9d8f;
+            --danger: #e76f51;
+            --white: #ffffff;
+            --text-dark: #2d3748;
+            --text-light: #718096;
+            --shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            --shadow-sm: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --radius: 16px;
+            --radius-sm: 12px;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #e8f0f5 0%, #d4e4ed 100%);
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        /* Header */
+        .header { text-align: center; margin-bottom: 35px; }
+        .header-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: white;
+            padding: 8px 24px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .header p { color: var(--text-light); font-size: 0.95rem; }
+
+        /* Cards */
+        .card {
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 25px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 22px;
+        }
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        /* Search Section */
+        .search-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .search-input {
+            flex: 1;
+            padding: 14px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            font-family: 'Cairo', sans-serif;
+            min-width: 200px;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 14px 32px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: 'Cairo', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15); }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; }
+        .btn-accent { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white; }
+        .btn-success { background: linear-gradient(135deg, var(--success), #3b9b8a); color: white; }
+        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-outline:hover { background: var(--primary); color: white; }
+        .btn-danger { background: linear-gradient(135deg, var(--danger), #c55a3e); color: white; }
+        .btn-full { width: 100%; margin-top: 20px; padding: 16px; font-size: 1.05rem; }
+
+        /* Upload Zone */
+        .upload-zone {
+            border: 2px dashed #cbd5e0;
+            border-radius: var(--radius-sm);
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f7fafc;
+            transition: all 0.2s;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            background: #edf2f7;
+            border-color: var(--primary);
+        }
+        .upload-icon { font-size: 3.5rem; margin-bottom: 12px; }
+        .file-info {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: #e6fffa;
+            border-radius: var(--radius-sm);
+            color: var(--success);
+            font-weight: 600;
+            display: none;
+        }
+
+        /* Image Preview */
+        .image-preview-container { margin-top: 20px; display: none; }
+        .image-wrapper {
+            background: #f7fafc;
+            border-radius: var(--radius-sm);
+            padding: 15px;
+            text-align: center;
+        }
+        #imageToCrop { max-width: 100%; max-height: 500px; display: block; margin: 0 auto; }
+        .crop-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        /* Loading */
+        .loading-box {
+            display: none;
+            text-align: center;
+            padding: 50px 20px;
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+        .spinner {
+            width: 55px;
+            height: 55px;
+            border: 5px solid #e2e8f0;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+            margin: 0 auto 18px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Stats */
+        .stats-bar {
+            display: none;
+            background: var(--white);
+            border-radius: var(--radius);
+            padding: 20px 30px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .stat { text-align: center; }
+        .stat-number { font-size: 2.2rem; font-weight: 800; color: var(--primary); }
+        .stat-label { font-size: 0.8rem; color: var(--text-light); margin-top: 5px; }
+
+        /* Medicine Cards - Enhanced */
+        .med-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }
+        .med-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+        .med-header {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .med-name { font-size: 1.4rem; font-weight: 800; color: white; }
+        .med-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+        }
+        .med-body { padding: 24px; }
+
+        /* Enhanced detail groups */
+        .detail-group {
+            margin-bottom: 20px;
+            background: #f8fafc;
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            transition: all 0.2s;
+            border-right: 3px solid transparent;
+        }
+        .detail-group:hover {
+            background: #f1f5f9;
+            border-right-color: var(--primary);
+        }
+        .detail-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        .detail-label .emoji {
+            font-size: 1.2rem;
+        }
+        .detail-text {
+            color: var(--text-dark);
+            line-height: 1.7;
+            padding-right: 28px;
+        }
+        .divider { height: 1px; background: #e2e8f0; margin: 15px 0; }
+
+        .conf-high { background: rgba(42, 157, 143, 0.2); color: #276749; }
+        .conf-medium { background: rgba(244, 162, 97, 0.18); color: #9c4221; }
+        .conf-low { background: rgba(231, 111, 81, 0.15); color: #9b2c2c; }
+
+        .alt-box {
+            background: #f7fafc;
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        .alt-title {
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .alt-tag {
+            display: inline-block;
+            background: white;
+            border: 1px solid #cbd5e0;
+            color: var(--primary);
+            font-size: 0.8rem;
+            padding: 5px 14px;
+            border-radius: 30px;
+            margin: 4px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .alt-tag:hover {
+            background: var(--primary);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: var(--white);
+            border-radius: var(--radius);
+        }
+        .empty-state .big-icon { font-size: 4rem; margin-bottom: 20px; }
+        .alert {
+            padding: 15px 20px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 500px;
+            margin: 0 auto 20px auto;
+            box-shadow: var(--shadow);
+        }
+        .alert-error { background: #fee2e2; color: var(--danger); border-right: 4px solid var(--danger); }
+        .alert-success { background: #e6fffa; color: var(--success); border-right: 4px solid var(--success); }
+        .alert-info { background: #e0f2fe; color: #0284c7; border-right: 4px solid #0284c7; }
+
+        #resultsSection { display: none; }
+
+        @media (max-width: 640px) {
+            .card { padding: 20px; }
+            .med-name { font-size: 1.2rem; }
+            .detail-group { padding: 10px 12px; }
+            .alert { margin: 10px; top: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-badge">💊 نظام تحليل الوصفات الطبية المتقدم</div>
+            <h1>📋 تحليل الروشتات الطبية</h1>
+            <p>ابحث عن دواء مباشرة، أو ارفع صورة الروشتة لتحليلها واستخراج جميع الأدوية</p>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <!-- Search Card -->
+        <div class="card">
+            <div class="card-title">
+                <div class="card-icon">🔍</div>
+                البحث المباشر عن دواء
+            </div>
+            <div class="search-row">
+                <input type="text" id="searchInput" class="search-input"
+                       placeholder="اكتب اسم الدواء... مثل: Povimet Cream, Azel, Panadol"
+                       onkeydown="if(event.key === 'Enter') searchMedicine()">
+                <button class="btn btn-primary" onclick="searchMedicine()">بحث</button>
+            </div>
+        </div>
+
+        <!-- Upload Card -->
+        <div class="card">
+            <div class="card-title">
+                <div class="card-icon">📷</div>
+                رفع وتحليل روشتة طبية
+            </div>
+
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📸</div>
+                <p style="font-weight: 600; color: var(--primary-dark);">انقر أو اسحب صورة الروشتة هنا</p>
+                <p>الامتدادات المدعومة: JPG, PNG, BMP, WEBP</p>
+                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            </div>
+
+            <div class="file-info" id="fileInfo"></div>
+
+            <div class="image-preview-container" id="previewContainer">
+                <h4>📐 حدد المنطقة التي تحتوي على الأدوية (اختياري):</h4>
+                <div class="image-wrapper">
+                    <img id="imageToCrop" src="" alt="معاينة الصورة">
+                </div>
+                <div class="crop-controls">
+                    <button class="btn btn-outline" id="resetCropBtn">↺ إعادة تعيين</button>
+                    <button class="btn btn-success" id="cropAndAnalyzeBtn">✂️ قص وتحليل</button>
+                    <button class="btn btn-primary" id="analyzeFullBtn">📋 تحليل الصورة كاملة</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading -->
+        <div class="loading-box" id="loadingBox">
+            <div class="spinner"></div>
+            <p>جاري تحليل الروشتة...</p>
+            <p class="sub">يتم استخراج النصوص والتعرف على الأدوية لكل سطر على حدة</p>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection">
+            <div class="stats-bar" id="statsBar"></div>
+            <div id="resultsContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let currentFilename = null;
+        let cropper = null;
+
+        const uploadZone = document.getElementById('uploadZone');
+        const imageInput = document.getElementById('imageInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const previewContainer = document.getElementById('previewContainer');
+        const imageToCrop = document.getElementById('imageToCrop');
+        const alertBox = document.getElementById('alert');
+
+        function showAlert(message, type = 'error') {
+            alertBox.className = `alert alert-${type}`;
+            alertBox.innerHTML = message;
+            alertBox.style.display = 'block';
+            setTimeout(() => {
+                alertBox.style.opacity = '0';
+                setTimeout(() => {
+                    alertBox.style.display = 'none';
+                    alertBox.style.opacity = '1';
+                }, 300);
+            }, 4000);
+        }
+
+        // حذف الملف الحالي من السيرفر
+        async function deleteCurrentFile() {
+            if (currentFilename) {
+                try {
+                    const response = await fetch('/api/delete-file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: currentFilename })
+                    });
+                    if (response.ok) {
+                        console.log('✅ تم حذف الملف القديم:', currentFilename);
+                    }
+                } catch(e) {
+                    console.log('خطأ في حذف الملف:', e);
+                }
+                currentFilename = null;
+            }
+        }
+
+        uploadZone.addEventListener('click', () => imageInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) await uploadFile(file);
+        });
+
+        imageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) await uploadFile(file);
+        });
+
+        async function uploadFile(file) {
+            // حذف الملف القديم قبل رفع الجديد
+            await deleteCurrentFile();
+
+            selectedFile = file;
+            fileInfo.style.display = 'block';
+            fileInfo.textContent = `⏳ جاري رفع: ${file.name}...`;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (data.ok) {
+                    currentFilename = data.filename;
+                    fileInfo.innerHTML = `✅ ${file.name} (${(file.size / 1024).toFixed(1)} KB) - تم الرفع بنجاح`;
+
+                    imageToCrop.src = `data:image/png;base64,${data.preview}`;
+                    previewContainer.style.display = 'block';
+
+                    if (cropper) cropper.destroy();
+                    cropper = new Cropper(imageToCrop, {
+                        aspectRatio: NaN,
+                        viewMode: 1,
+                        dragMode: 'crop',
+                        autoCropArea: 0.8,
+                    });
+
+                    showAlert('تم رفع الصورة بنجاح! يمكنك الآن تحديد المنطقة أو تحليل الصورة كاملة.', 'success');
+                } else {
+                    fileInfo.innerHTML = `❌ خطأ: ${data.error}`;
+                    showAlert(data.error, 'error');
+                }
+            } catch (error) {
+                fileInfo.innerHTML = `❌ خطأ في الرفع`;
+                showAlert('حدث خطأ في رفع الصورة', 'error');
+            }
+        }
+
+        document.getElementById('resetCropBtn').addEventListener('click', () => {
+            if (cropper) { cropper.reset(); cropper.clear(); }
+        });
+
+        document.getElementById('cropAndAnalyzeBtn').addEventListener('click', async () => {
+            if (!currentFilename) { showAlert('الرجاء رفع صورة أولاً', 'error'); return; }
+            if (!cropper) { showAlert('لم يتم تهيئة أداة القص', 'error'); return; }
+
+            const cropData = cropper.getData();
+            const cropCoords = {
+                x: Math.round(cropData.x),
+                y: Math.round(cropData.y),
+                width: Math.round(cropData.width),
+                height: Math.round(cropData.height)
+            };
+
+            showLoading();
+            hideResults();
+
+            try {
+                const response = await fetch('/api/prescription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentFilename, crop_coords: cropCoords })
+                });
+                const data = await response.json();
+
+                if (data.ok && data.medicines && data.medicines.length > 0) {
+                    showStats(data);
+                    renderMedicines(data.medicines);
+                    showAlert(`✅ تم العثور على ${data.total_medicines_found} دواء`, 'success');
+                } else {
+                    renderEmpty(data.error || 'لم يتم العثور على أدوية في المنطقة المحددة');
+                }
+            } catch (error) {
+                renderEmpty('حدث خطأ: ' + error.message);
+            } finally { hideLoading(); }
+        });
+
+        document.getElementById('analyzeFullBtn').addEventListener('click', async () => {
+            if (!currentFilename) { showAlert('الرجاء رفع صورة أولاً', 'error'); return; }
+
+            showLoading();
+            hideResults();
+
+            try {
+                const response = await fetch('/api/prescription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: currentFilename })
+                });
+                const data = await response.json();
+
+                if (data.ok && data.medicines && data.medicines.length > 0) {
+                    showStats(data);
+                    renderMedicines(data.medicines);
+                    showAlert(`✅ تم العثور على ${data.total_medicines_found} دواء`, 'success');
+                } else {
+                    renderEmpty(data.error || 'لم يتم العثور على أدوية في الصورة');
+                }
+            } catch (error) {
+                renderEmpty('حدث خطأ: ' + error.message);
+            } finally { hideLoading(); }
+        });
+
+        async function searchMedicine() {
+            const name = document.getElementById('searchInput').value.trim();
+            if (!name) { showAlert('الرجاء إدخال اسم الدواء', 'error'); return; }
+
+            showLoading();
+            hideResults();
+
+            try {
+                const response = await fetch(`/api/search?name=${encodeURIComponent(name)}`);
+                const data = await response.json();
+
+                if (data.ok && data.medicine) {
+                    showStats({ total_medicines_found: 1, total_lines_processed: '-', processing_time: '-' });
+                    renderMedicines([data.medicine]);
+                    showAlert(`✅ تم العثور على ${data.medicine.Name}`, 'success');
+                } else {
+                    renderEmpty(data.message || `لم يتم العثور على دواء باسم "${name}"`);
+                }
+            } catch (error) {
+                renderEmpty('خطأ في البحث: ' + error.message);
+            } finally { hideLoading(); }
+        }
+
+        function showLoading() {
+            document.getElementById('loadingBox').style.display = 'block';
+            hideResults();
+        }
+        function hideLoading() { document.getElementById('loadingBox').style.display = 'none'; }
+        function hideResults() { document.getElementById('resultsSection').style.display = 'none'; }
+
+        function showStats(data) {
+            const statsBar = document.getElementById('statsBar');
+            statsBar.style.display = 'flex';
+            statsBar.innerHTML = `
+                <div class="stat"><div class="stat-number">${data.total_medicines_found || 0}</div><div class="stat-label">💊 أدوية تم التعرف عليها</div></div>
+                <div class="stat"><div class="stat-number">${data.total_lines_processed || '-'}</div><div class="stat-label">📝 أسطر تم تحليلها</div></div>
+                <div class="stat"><div class="stat-number">${data.processing_time || '-'}</div><div class="stat-label">⏱️ ثواني المعالجة</div></div>
+            `;
+        }
+
+        function renderMedicines(medicines) {
+            let html = '';
+            medicines.forEach(med => {
+                const confidence = med.confidence || 85;
+                let confClass = confidence >= 85 ? 'conf-high' : (confidence >= 65 ? 'conf-medium' : 'conf-low');
+
+                html += `
+                    <div class="med-card">
+                        <div class="med-header">
+                            <div class="med-name">💊 ${escapeHtml(med.Name) || 'غير معروف'}</div>
+                            <div class="med-badge ${confClass}">🎯 دقة التطابق: ${confidence}%</div>
+                        </div>
+                        <div class="med-body">
+                            ${renderDetailGroup('🧪', 'المكونات الفعالة', med.Contains)}
+                            ${renderDetailGroup('📖', 'نبذة عن الدواء', med.ProductIntroduction)}
+                            ${renderDetailGroup('💪', 'الفوائد', med.ProductBenefits)}
+                            ${renderDetailGroup('⚠️', 'الآثار الجانبية', med.SideEffect)}
+                            ${renderDetailGroup('💊', 'طريقة الاستخدام', med.HowToUse)}
+                            ${renderDetailGroup('🔬', 'آلية العمل', med.HowWorks)}
+                            ${renderDetailGroup('💡', 'نصائح سريعة', med.QuickTips)}
+                            ${renderDetailGroup('🛡️', 'نصائح الأمان', med.SafetyAdvice)}
+                            ${renderAlternatives(med.alternatives)}
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('resultsContainer').innerHTML = html;
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function renderDetailGroup(emoji, label, value) {
+            if (!value || value.trim() === '') return '';
+            return `
+                <div class="detail-group">
+                    <div class="detail-label">
+                        <span class="emoji">${emoji}</span>
+                        <span>${label}:</span>
+                    </div>
+                    <div class="detail-text">${escapeHtml(value)}</div>
+                </div>
+            `;
+        }
+
+        function renderAlternatives(alternatives) {
+            if (!alternatives || alternatives.length === 0) return '';
+
+            let altHtml = `
+                <div class="alt-box">
+                    <div class="alt-title">
+                        <span>🔄</span>
+                        <span>أدوية بديلة:</span>
+                    </div>
+                    <div class="alt-list">
+            `;
+
+            alternatives.forEach(alt => {
+                altHtml += `<span class="alt-tag" onclick="searchAlternative('${escapeHtml(alt.name)}')">💊 ${escapeHtml(alt.name)} (${alt.score}%)</span>`;
+            });
+
+            altHtml += `</div></div>`;
+            return altHtml;
+        }
+
+        function searchAlternative(name) {
+            document.getElementById('searchInput').value = name;
+            searchMedicine();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderEmpty(message) {
+            document.getElementById('statsBar').style.display = 'none';
+            document.getElementById('resultsContainer').innerHTML = `
+                <div class="empty-state">
+                    <div class="big-icon">🔍</div>
+                    <h3>${escapeHtml(message)}</h3>
+                    <p>تأكد من أن الصورة واضحة وتحتوي على أسماء أدوية</p>
+                </div>
+            `;
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        // حذف الملف عند إغلاق الصفحة أو تحديثها
+        window.addEventListener('beforeunload', async () => {
+            if (currentFilename) {
+                try {
+                    await fetch('/api/delete-file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename: currentFilename }),
+                        keepalive: true
+                    });
+                } catch(e) {}
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
