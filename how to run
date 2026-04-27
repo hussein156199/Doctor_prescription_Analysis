@@ -1,0 +1,5 @@
+Run medicines_app  --->  2 version   1- run and pull data from Excel
+                                     2- run and pull data from  SQL database --> in SQL Server create database medicines_new
+                                     then load data from excel (medicines.xlxs ) by  right click --> tasks ==> import flat file
+                                     and make datatype nvarchar(max) and allow null ==>   get code from drugs_SQL.py
+                                     and put it into drugs.py and change name of server in code .
