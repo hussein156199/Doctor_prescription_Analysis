@@ -9,7 +9,7 @@ from functools import lru_cache
 
 # تحديد المسار الصحيح
 BASE_DIR = Path(__file__).resolve().parent.parent
-CSV_PATH = BASE_DIR / "data" / "medicines.csv"
+CSV_PATH = "https://docs.google.com/spreadsheets/d/1Xb3ZEMzTz6nw5huZ85I6Vzr5YaT2TV7M/edit?usp=sharing&ouid=102580503446997197769&rtpof=true&sd=true"
 li = '''
 A.E.R.
 A.S.
