@@ -224,16 +224,12 @@ def schedule_cleanup():
     thread = threading.Thread(target=cleanup_job, daemon=True)
     thread.start()
 
+
 if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("🚀 تشغيل تطبيق تحليل الروشتات الطبية")
     print("=" * 60)
-    
-    # استخدام PORT من Railway أو 5000 للاختبار المحلي
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    
-    print(f"📍 http://0.0.0.0:{port}")
+    print(f"📍 http://localhost:5000")
     print(f"📁 مجلد التحميلات: {UPLOAD_DIR}")
     print(f"📁 مجلد المؤقت: {PARENT_DIR / 'temp'}")
     print("=" * 60)
@@ -243,4 +239,4 @@ if __name__ == "__main__":
     # تشغيل مهمة التنظيف التلقائي
     schedule_cleanup()
 
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)

@@ -2,24 +2,14 @@
 import difflib
 import pandas as pd
 import re
-import gdown
-import pickle
-import os
+import sqlite3
+import hashlib
 from pathlib import Path
 from functools import lru_cache
 
 # تحديد المسار الصحيح
 BASE_DIR = Path(__file__).resolve().parent.parent
-CACHE_DIR = BASE_DIR / "data"
-CACHE_DIR.mkdir(exist_ok=True)  # إنشاء مجلد data إذا لم يكن موجوداً
-
-# ملفات الكاش المحلي
-CACHE_PKL = CACHE_DIR / "medicines_cache.pkl"
-CACHE_CSV = CACHE_DIR / "medicines_cached.csv"
-
-# معرف ملف Google Drive الخاص بك
-GOOGLE_DRIVE_FILE_ID = "1Xb3ZEMzTz6nw5huZ85I6Vzr5YaT2TV7M"
-GOOGLE_DRIVE_URL = f"https://drive.google.com/uc?export=download&id={GOOGLE_DRIVE_FILE_ID}"
+CSV_PATH = BASE_DIR / "data" / "medicines.csv"
 li = '''
 A.E.R.
 A.S.
@@ -192837,8 +192827,7 @@ Zitelmi-H Tablet
 Zylin D 50/20 Capsule DR
 '''
 
-# قائمة أسماء الأدوية (سيتم تعبئتها تلقائياً)
-names = []
+names = [name.strip() for name in li.split('\n') if name.strip()]
 
 # قاعدة بيانات الأدوية
 medicine_details = {}
@@ -192846,200 +192835,111 @@ medicine_details = {}
 # ذاكرة تخزين مؤقت للبحث
 search_cache = {}
 
-# ============================================
-# 1. تحميل قاعدة البيانات من Google Drive
-# ============================================
+def load_medicine_database():
+    """تحميل قاعدة بيانات الأدوية من CSV"""
+    global medicine_details
 
-def load_medicine_database(force_reload=False):
-    """
-    تحميل قاعدة بيانات الأدوية من Google Drive
-    - إذا كان الملف موجوداً محلياً (كاش)، استخدمه مباشرة
-    - وإلا قم بتحميله من Drive وحفظه في الكاش
-    """
-    global medicine_details, names
+    print(f"🔍 البحث عن CSV في: {CSV_PATH}")
 
-    # 1️⃣ محاولة التحميل من الكاش المحلي (pickle - أسرع)
-    if not force_reload and CACHE_PKL.exists():
+    if CSV_PATH.exists():
         try:
-            with open(CACHE_PKL, 'rb') as f:
-                cache_data = pickle.load(f)
-                medicine_details = cache_data['details']
-                names = cache_data['names']
-            print(f"✅ تم تحميل {len(medicine_details)} دواء من الكاش المحلي (ملف PKL)")
-            print(f"📋 عدد الأدوية في القائمة: {len(names)}")
+            df = pd.read_csv(CSV_PATH)
+            df.fillna("", inplace=True)
+
+            count = 0
+            for _, row in df.iterrows():
+                name = str(row.get("Name", "")).strip()
+                if name and name.lower() != 'nan' and name != '':
+                    medicine_details[name.lower()] = {
+                        "Name": row.get("Name", ""),
+                        "Contains": row.get("Contains", ""),
+                        "ProductIntroduction": row.get("ProductIntroduction", ""),
+                        "ProductBenefits": row.get("ProductBenefits", ""),
+                        "SideEffect": row.get("SideEffect", ""),
+                        "HowToUse": row.get("HowToUse", ""),
+                        "HowWorks": row.get("HowWorks", ""),
+                        "QuickTips": row.get("QuickTips", ""),
+                        "SafetyAdvice": row.get("SafetyAdvice", ""),
+                    }
+                    count += 1
+
+            print(f"✅ تم تحميل {count} دواء من CSV")
             return True
-        except Exception as e:
-            print(f"⚠️ فشل تحميل الكاش: {e}")
-            # استمر لتحميل من Drive
 
-    # 2️⃣ تحميل من Google Drive
-    print("🔍 جاري تحميل قاعدة البيانات من Google Drive...")
-    
-    try:
-        # تحديد مسار الملف
-        file_path = CACHE_CSV
-        
-        if not force_reload and file_path.exists():
-            print(f"📁 استخدام ملف مخبأ: {file_path}")
-        else:
-            # تحميل ملف جديد من Drive
-            print(f"🌐 تحميل من: {GOOGLE_DRIVE_URL}")
-            gdown.download(GOOGLE_DRIVE_URL, str(file_path), quiet=False)
-        
-        # ✅ محاولة قراءة الملف (يدعم Excel و CSV)
-        print(f"📁 محاولة قراءة الملف: {file_path}")
-        
-        # تجربة قراءة الملف كـ Excel أولاً
-        try:
-            df = pd.read_excel(file_path, engine='openpyxl')
-            print("📊 تم قراءة الملف كـ Excel بنجاح")
-        except Exception as e1:
-            print(f"⚠️ فشل كـ Excel: {e1}")
-            # جرب كـ CSV
-            try:
-                df = pd.read_csv(file_path, encoding='utf-8')
-                print("📊 تم قراءة الملف كـ CSV (utf-8)")
-            except UnicodeDecodeError:
-                df = pd.read_csv(file_path, encoding='latin1')
-                print("📊 تم قراءة الملف كـ CSV (latin1)")
-            except Exception as e2:
-                print(f"⚠️ فشل كـ CSV: {e2}")
-                raise Exception("لا يمكن قراءة الملف كـ Excel أو CSV")
-        
-        # تنظيف البيانات
-        df = df.fillna("")
-        
-        # 🔍 اكتشاف أسماء الأعمدة تلقائياً
-        name_column = _find_column(df, ['Name', 'name', 'اسم الدواء', 'Drug Name', 'Medicine Name', 'Trade Name'])
-        contains_column = _find_column(df, ['Contains', 'المكونات', 'Ingredients', 'Active Ingredients', 'Composition'])
-        intro_column = _find_column(df, ['ProductIntroduction', 'Introduction', 'مقدمة', 'Description', 'About'])
-        benefits_column = _find_column(df, ['ProductBenefits', 'Benefits', 'الفوائد', 'Uses', 'Indications'])
-        side_effects_column = _find_column(df, ['SideEffect', 'Side Effects', 'الآثار الجانبية', 'Adverse Effects'])
-        how_to_use_column = _find_column(df, ['HowToUse', 'Usage', 'طريقة الاستخدام', 'Directions', 'Dosage'])
-        how_works_column = _find_column(df, ['HowWorks', 'Mechanism', 'آلية العمل', 'Pharmacology'])
-        quick_tips_column = _find_column(df, ['QuickTips', 'Tips', 'نصائح سريعة', 'Advice'])
-        safety_column = _find_column(df, ['SafetyAdvice', 'Safety', 'نصائح السلامة', 'Precautions', 'Warnings'])
-        
-        print(f"📋 تم التعرف على الأعمدة:")
-        print(f"   - اسم الدواء: {name_column}")
-        print(f"   - المكونات: {contains_column or 'غير موجود'}")
-        print(f"   - الفوائد: {benefits_column or 'غير موجود'}")
-        
-        # التحقق من وجود عمود الأسماء
-        if name_column is None:
-            raise Exception("لم يتم العثور على عمود أسماء الأدوية")
-        
-        # تحميل البيانات إلى قاموس medicine_details
-        count = 0
-        names_list = []
-        
-        for _, row in df.iterrows():
-            name = str(row.get(name_column, "")).strip()
-            if name and name.lower() != 'nan' and name != '':
-                names_list.append(name)
-                
-                medicine_details[name.lower()] = {
-                    "Name": name,
-                    "Contains": str(row.get(contains_column, "")) if contains_column else "",
-                    "ProductIntroduction": str(row.get(intro_column, "")) if intro_column else "",
-                    "ProductBenefits": str(row.get(benefits_column, "")) if benefits_column else "",
-                    "SideEffect": str(row.get(side_effects_column, "")) if side_effects_column else "",
-                    "HowToUse": str(row.get(how_to_use_column, "")) if how_to_use_column else "",
-                    "HowWorks": str(row.get(how_works_column, "")) if how_works_column else "",
-                    "QuickTips": str(row.get(quick_tips_column, "")) if quick_tips_column else "",
-                    "SafetyAdvice": str(row.get(safety_column, "")) if safety_column else "",
-                }
-                count += 1
-        
-        # تحديث قائمة الأسماء العالمية
-        names = names_list
-        
-        print(f"✅ تم تحميل {count} دواء من Google Drive")
-        
-        # 3️⃣ حفظ في الكاش المحلي (pickle)
-        try:
-            cache_data = {
-                'details': medicine_details,
-                'names': names
-            }
-            with open(CACHE_PKL, 'wb') as f:
-                pickle.dump(cache_data, f)
-            print(f"💾 تم حفظ الكاش في {CACHE_PKL}")
         except Exception as e:
-            print(f"⚠️ فشل حفظ الكاش: {e}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ خطأ في تحميل الملف من Google Drive: {e}")
-        print("📝 سيتم استخدام البيانات التجريبية بدلاً من ذلك")
-        _load_demo_data()
-        return False
+            print(f"⚠️ خطأ في تحميل CSV: {e}")
+            return False
+    else:
+        print(f"⚠️ ملف CSV غير موجود: {CSV_PATH}")
+        print("📝 استخدام البيانات التجريبية")
 
-def _load_demo_data():
-    """تحميل البيانات التجريبية في حالة فشل الاتصال بـ Google Drive"""
-    global medicine_details, names
-    
-    print("📦 تحميل البيانات التجريبية...")
-    
-    # قائمة الأدوية التجريبية
-    demo_medicines = [
-        "Povimet Cream", "Azel 40mg Capsule", "Long Drive 30mg Tablet",
-        "Long Drive 60mg Tablet", "Zach Tablet", "Zabesta Tablet",
-        "Zyrop 5000 Injection", "Zifi CV 50 DT Tablet", "Zedoxy 200 Tablet",
-        "Zonticin Eye/Ear Drop", "Zenoxa OD 900 Tablet SR", "Zitelmi-H Tablet",
-        "Zylin D 50/20 Capsule DR"
-    ]
-    
-    # بيانات تجريبية مفصلة
-    demo_data = {
-        "povimet cream": {
-            "Name": "Povimet Cream",
-            "Contains": "Povidone-Iodine 5%",
-            "ProductIntroduction": "مطهر ومضاد للبكتيريا يستخدم لعلاج الجروح والحروق",
-            "ProductBenefits": "يقتل البكتيريا والفطريات، يمنع العدوى",
-            "SideEffect": "قد يسبب تهيج بسيط للجلد",
-            "HowToUse": "يوضع على المنطقة المصابة 2-3 مرات يومياً",
-            "HowWorks": "يطلق اليود ببطء لقتل الكائنات الدقيقة",
-            "QuickTips": "تجنب ملامسة العينين، استشر الطبيب للحروق العميقة",
-            "SafetyAdvice": "لا تستخدمه للحروق العميقة أو الجروح الكبيرة",
-        },
-        "azel 40mg capsule": {
-            "Name": "Azel 40mg Capsule",
-            "Contains": "Azithromycin 40mg",
-            "ProductIntroduction": "مضاد حيوي لعلاج الالتهابات البكتيرية",
-            "ProductBenefits": "يعالج التهابات الجهاز التنفسي والجلد",
-            "SideEffect": "غثيان، إسهال، آلام في المعدة",
-            "HowToUse": "يؤخذ حسب إرشادات الطبيب، مرة واحدة يومياً",
-            "HowWorks": "يمنع تكاثر البكتيريا",
-            "QuickTips": "خذ الدواء مع الطعام إذا شعرت بغثيان",
-            "SafetyAdvice": "أكمل الجرعة كاملة حتى لو تحسنت الأعراض",
+        # بيانات تجريبية كاملة بجميع الحقول
+        demo_data = {
+            "povimet cream": {
+                "Name": "Povimet Cream",
+                "Contains": "Povidone-Iodine 5%",
+                "ProductIntroduction": "مطهر ومضاد للبكتيريا يستخدم لعلاج الجروح والحروق",
+                "ProductBenefits": "يقتل البكتيريا والفطريات، يمنع العدوى",
+                "SideEffect": "قد يسبب تهيج بسيط للجلد",
+                "HowToUse": "يوضع على المنطقة المصابة 2-3 مرات يومياً",
+                "HowWorks": "يطلق اليود ببطء لقتل الكائنات الدقيقة",
+                "QuickTips": "تجنب ملامسة العينين، استشر الطبيب للحروق العميقة",
+                "SafetyAdvice": "لا تستخدمه للحروق العميقة أو الجروح الكبيرة",
+            },
+            "azel 40mg capsule": {
+                "Name": "Azel 40mg Capsule",
+                "Contains": "Azithromycin 40mg",
+                "ProductIntroduction": "مضاد حيوي لعلاج الالتهابات البكتيرية",
+                "ProductBenefits": "يعالج التهابات الجهاز التنفسي والجلد",
+                "SideEffect": "غثيان، إسهال، آلام في المعدة",
+                "HowToUse": "يؤخذ حسب إرشادات الطبيب، مرة واحدة يومياً",
+                "HowWorks": "يمنع تكاثر البكتيريا",
+                "QuickTips": "خذ الدواء مع الطعام إذا شعرت بغثيان",
+                "SafetyAdvice": "أكمل الجرعة كاملة حتى لو تحسنت الأعراض",
+            },
+            "long drive 30mg tablet": {
+                "Name": "Long Drive 30mg Tablet",
+                "Contains": "Long Drive 30mg",
+                "ProductIntroduction": "دواء لعلاج مشاكل المعدة",
+                "ProductBenefits": "يساعد في تحسين الهضم",
+                "SideEffect": "قد يسبب دوخة خفيفة",
+                "HowToUse": "يؤخذ قبل الأكل بنصف ساعة",
+                "HowWorks": "يعمل على تنظيم حركة المعدة",
+                "QuickTips": "لا تقم بقيادة السيارة إذا شعرت بدوخة",
+                "SafetyAdvice": "استشر الطبيب قبل الاستخدام",
+            },
+            "long drive 60mg tablet": {
+                "Name": "Long Drive 60mg Tablet",
+                "Contains": "Long Drive 60mg",
+                "ProductIntroduction": "دواء لعلاج مشاكل المعدة بجرعة أعلى",
+                "ProductBenefits": "يساعد في تحسين الهضم للحالات المتقدمة",
+                "SideEffect": "قد يسبب دوخة خفيفة",
+                "HowToUse": "يؤخذ حسب إرشادات الطبيب",
+                "HowWorks": "يعمل على تنظيم حركة المعدة",
+                "QuickTips": "لا تقم بقيادة السيارة إذا شعرت بدوخة",
+                "SafetyAdvice": "استشر الطبيب قبل الاستخدام",
+            },
         }
-    }
-    
-    for name in demo_medicines:
-        name_lower = name.lower()
-        if name_lower in demo_data:
-            medicine_details[name_lower] = demo_data[name_lower]
-        else:
-            medicine_details[name_lower] = {
-                "Name": name,
-                "Contains": f"المكونات النشطة لـ {name}",
-                "ProductIntroduction": f"هذا دواء {name} يستخدم لعلاج الحالات المختلفة",
-                "ProductBenefits": "يستخدم وفقاً لإرشادات الطبيب",
-                "SideEffect": "قد تحدث بعض الآثار الجانبية، استشر طبيبك",
-                "HowToUse": "اتبع تعليمات الطبيب والصيدلي",
-                "HowWorks": "يؤثر الدواء على الجسم وفقاً لآلية عمله",
-                "QuickTips": "تناول الدواء بانتظام في المواعيد المحددة",
-                "SafetyAdvice": "احفظ الدواء في مكان بارد وجاف بعيداً عن متناول الأطفال",
-            }
-    
-    names = demo_medicines
-    print(f"✅ تم تحميل {len(medicine_details)} دواء من البيانات التجريبية")
 
-# ============================================
-# 2. دوالبحث والمعالجة
-# ============================================
+        for name in names:
+            name_lower = name.lower()
+            if name_lower in demo_data:
+                medicine_details[name_lower] = demo_data[name_lower]
+            else:
+                medicine_details[name_lower] = {
+                    "Name": name,
+                    "Contains": f"المكونات النشطة لـ {name}",
+                    "ProductIntroduction": f"هذا دواء {name} يستخدم لعلاج الحالات المختلفة",
+                    "ProductBenefits": "يستخدم وفقاً لإرشادات الطبيب",
+                    "SideEffect": "قد تحدث بعض الآثار الجانبية، استشر طبيبك",
+                    "HowToUse": "اتبع تعليمات الطبيب والصيدلي",
+                    "HowWorks": "يؤثر الدواء على الجسم وفقاً لآلية عمله",
+                    "QuickTips": "تناول الدواء بانتظام في المواعيد المحددة",
+                    "SafetyAdvice": "احفظ الدواء في مكان بارد وجاف بعيداً عن متناول الأطفال",
+                }
+
+        print(f"✅ تم تحميل {len(medicine_details)} دواء من البيانات التجريبية")
+        return False
 
 def extract_numbers_from_text(text: str) -> str:
     """استخراج الأرقام من النص"""
@@ -193088,7 +192988,7 @@ def exact_match(name: str) -> dict:
 @lru_cache(maxsize=128)
 def get_medicine_names_list():
     """إرجاع قائمة أسماء الأدوية للتخزين المؤقت"""
-    return tuple(names)
+    return tuple(names)  # tuple لتكون hashable للتخزين المؤقت
 
 def find_drug(name, threshold=0.65):
     """البحث عن دواء - محسن للسرعة"""
@@ -193227,11 +193127,9 @@ def get_alternatives(drug_name, exclude_name=None, limit=5):
     return unique[:limit]
 
 def get_all_medicine_names():
-    """إرجاع جميع أسماء الأدوية"""
     return names
 
 def search_medicine_by_name(name):
-    """واجهة بحث مبسطة"""
     return find_drug_with_details(name)
 
 def clear_cache():
@@ -193239,35 +193137,22 @@ def clear_cache():
     global search_cache
     search_cache = {}
     get_medicine_names_list.cache_clear()
-    print("🗑️ تم مسح الكاش المؤقت")
 
-def reload_database():
-    """إعادة تحميل قاعدة البيانات من Drive (تجاوز الكاش)"""
-    clear_cache()
-    return load_medicine_database(force_reload=True)
-
-# ============================================
-# 3. التحميل الابتدائي عند استيراد الموديول
-# ============================================
-
+# تحميل قاعدة البيانات
 print("=" * 50)
 print("🚀 تحميل قاعدة بيانات الأدوية...")
 load_medicine_database()
 print(f"📋 عدد الأدوية في القائمة: {len(names)}")
 print("=" * 50)
 
-# ============================================
-# 4. اختبار سريع عند التشغيل المباشر
-# ============================================
-
 if __name__ == "__main__":
-    print("\n🧪 اختبار سريع:")
-    test_cases = ["Povimet Cream", "Azel 40mg Capsule", "Long Drive 30mg Tablet", "Zach Tablet"]
+    print("\n🧪 اختبار:")
+    test_cases = ["Povimet Cream", "Azel 40mg Capsule", "Long Drive 30mg Tablet"]
     for test in test_cases:
         result = find_drug_with_details(test)
         if result:
             print(f"\n🔍 {test} -> {result['Name']} (الثقة: {result.get('confidence', 0)}%)")
-            print(f"   🧪 المكونات: {result.get('Contains', 'غير متوفر')[:60]}")
-            print(f"   📖 نبذة: {result.get('ProductIntroduction', 'غير متوفر')[:60]}")
-        else:
-            print(f"\n❌ {test}: لم يتم العثور عليه")
+            print(f"   🧪 المكونات: {result.get('Contains', '')[:50]}")
+            print(f"   📖 نبذة: {result.get('ProductIntroduction', '')[:50]}")
+            print(f"   💊 طريقة الاستخدام: {result.get('HowToUse', '')[:50]}")
+            print(f"   ⚠️ الآثار الجانبية: {result.get('SideEffect', '')[:50]}")
