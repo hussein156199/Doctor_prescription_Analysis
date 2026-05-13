@@ -192876,26 +192876,40 @@ def load_medicine_database(force_reload=False):
     print("🔍 جاري تحميل قاعدة البيانات من Google Drive...")
     
     try:
-        # محاولة التحميل كملف CSV مباشر من Google Sheets
-        csv_path = CACHE_CSV
+        # تحديد مسار الملف
+        file_path = CACHE_CSV
         
-        if not force_reload and csv_path.exists():
-            print(f"📁 استخدام ملف CSV المخبأ: {csv_path}")
-            df = pd.read_csv(csv_path)
+        if not force_reload and file_path.exists():
+            print(f"📁 استخدام ملف مخبأ: {file_path}")
         else:
             # تحميل ملف جديد من Drive
             print(f"🌐 تحميل من: {GOOGLE_DRIVE_URL}")
-            
-            # استخدام gdown للتحميل (يدعم الملفات الكبيرة)
-            gdown.download(GOOGLE_DRIVE_URL, str(csv_path), quiet=False)
-            
-            # قراءة الملف CSV المحمل
-            df = pd.read_csv(csv_path)
+            gdown.download(GOOGLE_DRIVE_URL, str(file_path), quiet=False)
+        
+        # ✅ محاولة قراءة الملف (يدعم Excel و CSV)
+        print(f"📁 محاولة قراءة الملف: {file_path}")
+        
+        # تجربة قراءة الملف كـ Excel أولاً
+        try:
+            df = pd.read_excel(file_path, engine='openpyxl')
+            print("📊 تم قراءة الملف كـ Excel بنجاح")
+        except Exception as e1:
+            print(f"⚠️ فشل كـ Excel: {e1}")
+            # جرب كـ CSV
+            try:
+                df = pd.read_csv(file_path, encoding='utf-8')
+                print("📊 تم قراءة الملف كـ CSV (utf-8)")
+            except UnicodeDecodeError:
+                df = pd.read_csv(file_path, encoding='latin1')
+                print("📊 تم قراءة الملف كـ CSV (latin1)")
+            except Exception as e2:
+                print(f"⚠️ فشل كـ CSV: {e2}")
+                raise Exception("لا يمكن قراءة الملف كـ Excel أو CSV")
         
         # تنظيف البيانات
         df = df.fillna("")
         
-        # 🔍 اكتشاف أسماء الأعمدة تلقائياً (مرن لأي ملف)
+        # 🔍 اكتشاف أسماء الأعمدة تلقائياً
         name_column = _find_column(df, ['Name', 'name', 'اسم الدواء', 'Drug Name', 'Medicine Name', 'Trade Name'])
         contains_column = _find_column(df, ['Contains', 'المكونات', 'Ingredients', 'Active Ingredients', 'Composition'])
         intro_column = _find_column(df, ['ProductIntroduction', 'Introduction', 'مقدمة', 'Description', 'About'])
@@ -192910,6 +192924,10 @@ def load_medicine_database(force_reload=False):
         print(f"   - اسم الدواء: {name_column}")
         print(f"   - المكونات: {contains_column or 'غير موجود'}")
         print(f"   - الفوائد: {benefits_column or 'غير موجود'}")
+        
+        # التحقق من وجود عمود الأسماء
+        if name_column is None:
+            raise Exception("لم يتم العثور على عمود أسماء الأدوية")
         
         # تحميل البيانات إلى قاموس medicine_details
         count = 0
@@ -192936,9 +192954,9 @@ def load_medicine_database(force_reload=False):
         # تحديث قائمة الأسماء العالمية
         names = names_list
         
-        print(f"✅ تم تحميل {count} دواء من Google Sheets")
+        print(f"✅ تم تحميل {count} دواء من Google Drive")
         
-        # 3️⃣ حفظ في الكاش المحلي (pickle) لسرعة下次
+        # 3️⃣ حفظ في الكاش المحلي (pickle)
         try:
             cache_data = {
                 'details': medicine_details,
@@ -192957,13 +192975,6 @@ def load_medicine_database(force_reload=False):
         print("📝 سيتم استخدام البيانات التجريبية بدلاً من ذلك")
         _load_demo_data()
         return False
-
-def _find_column(df, possible_names):
-    """البحث عن عمود في DataFrame بأسماء محتملة متعددة"""
-    for col_name in possible_names:
-        if col_name in df.columns:
-            return col_name
-    return None
 
 def _load_demo_data():
     """تحميل البيانات التجريبية في حالة فشل الاتصال بـ Google Drive"""
