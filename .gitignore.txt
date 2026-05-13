@@ -1,0 +1,4 @@
+data/medicines_cache.pkl
+data/medicines_cached.csv
+__pycache__/
+*.pyc

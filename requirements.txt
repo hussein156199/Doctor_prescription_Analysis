@@ -15,3 +15,6 @@ tqdm==4.66.3              # via -r requirements.in
 Flask>=2.0.0
 pandas
 rapidfuzz
+pandas>=2.0.0
+gdown>=4.7.0
+difflib
